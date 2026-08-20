@@ -231,27 +231,9 @@ static void _rkFDSolverCompensateDepth(rkFDSolver *s)
   }
 }
 
-static zVec _rkFDSolverQPASMInit(zMat a, zVec b, zVec ans, void *util)
-{
-  rkFDSolver *s;
-  int i;
-
-  s = (rkFDSolver *)util;
-  zVecZero( ans );
-  for( i=0; i<_prp(s)->colnum; i++ )
-    zVecElemNC(ans,3*i) = 1.0;
-  return ans;
-}
-
-static double _rkFDSolverQPASMCond(zMat a, zVec ans, int i, void *util)
-{
-  int n = i / ( rkFDPrpPyramid(((rkFDSolver *)util)->fdprp) );
-  return zVec3DInnerProd( (zVec3D *)&zMatElemNC(a,i,3*n), (zVec3D *)&zVecElemNC(ans,3*n) );
-}
-
 static void _rkFDSolverQPASM(rkFDSolver *s)
 {
-  rkFDQPSolveASM( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx, _rkFDSolverQPASMInit, _rkFDSolverQPASMCond, s);
+  rkFDQPSolvePGS( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx );
 }
 
 /* Quadratic Problem */

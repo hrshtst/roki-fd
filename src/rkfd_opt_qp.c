@@ -204,3 +204,75 @@ bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec i
   zVecFreeAtOnce( 7, xy, bact, rhs, lam, tmp, xv, d );
   return ret;
 }
+
+/* solve a quadratic program with a positive-definite Hessian and
+ * inequality constraints through its dual linear complementarity
+ * problem by the projected Gauss=Seidel method.  Unlike the active-set
+ * method above, no rank-revealing linear solve is involved, so
+ * degenerate (redundant) constraint sets such as friction pyramids of
+ * coplanar contact vertices are handled without numerical hazard. */
+#define RKFD_OPT_QP_PGS_ITER_MAX 10000
+#define RKFD_OPT_QP_PGS_TOL ( 1.0e-12 )
+bool rkFDQPSolvePGS(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx)
+{
+  zMat qinv, t, m;
+  zVec pfree, q0, lam;
+  double w, lnew, dmax, lmax;
+  bool ret = true;
+  int mb, n, i, j, iter;
+
+  n = zVecSizeNC(ans);
+  mb = zVecSizeNC(b);
+  qinv = zMatAllocSqr( n );
+  t = zMatAlloc( mb, n );
+  m = zMatAllocSqr( mb );
+  pfree = zVecAlloc( n );
+  q0 = zVecAlloc( mb );
+  lam = zVecAlloc( mb );
+  if( !qinv || !t || !m || !pfree || !q0 || !lam ){
+    ret = false;
+    goto RET;
+  }
+  /* the Hessian is positive definite by construction: a Gram matrix
+     plus the relaxation regularizer on the diagonal */
+  if( !zMatInv( q, qinv ) ){
+    zVecZero( ans );
+    ret = false;
+    goto RET;
+  }
+  /* dual LCP: 0 <= lam  complementary to  M lam + q0 >= 0, where
+     M = A Q^-1 A^T and q0 = A pfree - b with pfree = -Q^-1 c;
+     the primal optimum is ans = pfree + Q^-1 A^T lam */
+  zMulMatVec( qinv, c, pfree );
+  zVecRevDRC( pfree );
+  zMulMatMat( a, qinv, t );
+  zMulMatMatT( t, a, m );
+  zMulMatVec( a, pfree, q0 );
+  zVecSubDRC( q0, b );
+  for( iter=0; iter<RKFD_OPT_QP_PGS_ITER_MAX; iter++ ){
+    dmax = lmax = 0;
+    for( i=0; i<mb; i++ ){
+      if( zMatElemNC(m,i,i) < zTOL ) continue; /* degenerate row */
+      w = zVecElemNC(q0,i);
+      for( j=0; j<mb; j++ )
+        w += zMatElemNC(m,i,j) * zVecElemNC(lam,j);
+      lnew = zVecElemNC(lam,i) - w / zMatElemNC(m,i,i);
+      if( lnew < 0 ) lnew = 0;
+      if( fabs( lnew - zVecElemNC(lam,i) ) > dmax )
+        dmax = fabs( lnew - zVecElemNC(lam,i) );
+      zVecElemNC(lam,i) = lnew;
+      if( lnew > lmax ) lmax = lnew;
+    }
+    if( dmax <= RKFD_OPT_QP_PGS_TOL * zMax( 1, lmax ) ) break;
+  }
+  /* primal solution: t^T = Q^-1 A^T since Q is symmetric */
+  zMulMatTVec( t, lam, ans );
+  zVecAddDRC( ans, pfree );
+  for( i=0; i<mb; i++ )
+    zIndexElemNC(idx,i) = zVecElemNC(lam,i) > 0 ? 1 : 0;
+
+ RET:
+  zMatFreeAtOnce( 3, qinv, t, m );
+  zVecFreeAtOnce( 3, pfree, q0, lam );
+  return ret;
+}

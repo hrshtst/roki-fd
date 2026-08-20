@@ -527,23 +527,9 @@ static void _rkFDSolverQPCreate(rkFDSolver *s)
   }
 }
 
-static zVec _rkFDSolverQPInit(zMat a, zVec b, zVec ans, void *util)
-{
-  rkCDPairDat **pd;
-  int offset = 0;
-
-  zVecZero( ans );
-  rkFDCDForEachRigidPair( ((rkFDSolver*)util)->cd, pd ){
-    /* normal forces initial offset */
-    zVec3DMul( &(*pd)->norm, 1.0, (zVec3D *)&zVecElemNC(ans,offset) );
-    offset += 6;
-  }
-  return ans;
-}
-
 static void _rkFDSolverQP(rkFDSolver *s)
 {
-  rkFDQPSolveASM( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx, _rkFDSolverQPInit, NULL, s );
+  rkFDQPSolvePGS( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx );
   zVecDivDRC( _prp(s)->f, rkFDPrpDT(s->fdprp) );
 }
 
