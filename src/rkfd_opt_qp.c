@@ -42,14 +42,14 @@ static uint _rkFDQPSolveASMInitIndex(zIndex idx, zMat a, zVec b, zVec ans, void 
 #define RKFD_OPT_QP_ASM_TOL ( 1.0e-8 )
 bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec init(zMat,zVec,zVec,void*), double cond(zMat,zVec,int,void*), void *util)
 {
-  zMat qa;
-  zVec xy, cb, d;
+  zMat qinv, aact, tm, s;
+  zVec xy, bact, rhs, lam, tmp, xv, d;
   double tempd, tempd2, objv;
   _rkFDQPASMIndexList ilist;
   _rkFDQPASMIndex *idata;
   bool endflag, ret = true;
   int tempi;
-  int n, nm, m;
+  int n, mb, m;
   int i, j, k;
 
   /* function settings */
@@ -61,12 +61,29 @@ bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec i
 
   /* allocate workspace */
   n = zVecSizeNC(ans);
+  mb = zVecSizeNC(b);
   zListInit( &ilist );
   d = zVecAlloc(n);
-  qa = zMatAllocSqr( n + zVecSizeNC(b) );
-  xy = zVecAlloc( n + zVecSizeNC(b) );
-  cb = zVecAlloc( n + zVecSizeNC(b) );
-  if( !d || !qa || !xy || !cb ){
+  qinv = zMatAllocSqr( n );
+  aact = zMatAlloc( mb, n );
+  tm = zMatAlloc( mb, n );
+  s = zMatAllocSqr( mb );
+  xy = zVecAlloc( n + mb );
+  bact = zVecAlloc( mb );
+  rhs = zVecAlloc( mb );
+  lam = zVecAlloc( mb );
+  tmp = zVecAlloc( n );
+  xv = zVecAlloc( n );
+  if( !d || !qinv || !aact || !tm || !s || !xy || !bact || !rhs || !lam || !tmp || !xv ){
+    ret = false;
+    goto RET;
+  }
+  /* the Hessian is positive definite by construction (a Gram matrix plus
+     the relaxation regularizer), so each active-set subproblem is solved
+     through its inverse and the small Schur complement of the active
+     rows, instead of one big indefinite KKT matrix whose rank-revealing
+     solution is numerically fragile under degenerate active sets */
+  if( !zMatInv( q, qinv ) ){
     ret = false;
     goto RET;
   }
@@ -74,40 +91,47 @@ bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec i
   /* solve */
   m = _rkFDQPSolveASMInitIndex( idx, a, b, ans, util, cond );
   do{
-    nm = n + m;
-    zMatSetSize( qa, nm, nm );
-    zVecSetSize( xy, nm );
-    zVecSetSize( cb, nm );
+    zVecSetSize( xy, n + m );
+    if( m > 0 ){
+      zMatSetSize( aact, m, n );
+      zVecSetSize( bact, m );
+      for( k=0, i=0; i<m; i++ ){
+        while( !zIndexElemNC(idx,k) && k < mb ) k++;
+        for( j=0; j<n; j++ )
+          zMatElemNC(aact,i,j) = zMatElemNC(a,k,j);
+        zVecElemNC(bact,i) = zVecElemNC(b,k);
+        k++;
+      }
+      zMatSetSize( tm, m, n );
+      zMatSetSize( s, m, m );
+      zVecSetSize( rhs, m );
+      zVecSetSize( lam, m );
+      /* S lam = b_act + A_act Q^-1 c,  x = Q^-1 ( A_act^T lam - c ) */
+      zMulMatMat( aact, qinv, tm );
+      zMulMatMatT( tm, aact, s );
+      zMulMatVec( tm, c, rhs );
+      zVecAddDRC( rhs, bact );
+      zVecZero( lam );
+      zLESolveMP( s, rhs, NULL, NULL, lam );
+      zMulMatTVec( aact, lam, tmp );
+      zVecSubDRC( tmp, c );
+      zMulMatVec( qinv, tmp, xv );
+      for( i=0; i<m; i++ )
+        zVecElemNC(xy,n+i) = zVecElemNC(lam,i);
+    } else{
+      /* unconstrained minimum */
+      zMulMatVec( qinv, c, xv );
+      zVecRevDRC( xv );
+    }
+    for( i=0; i<n; i++ )
+      zVecElemNC(xy,i) = zVecElemNC(xv,i);
 
+    /* progress check: the KKT solve of a degenerate active set only
+       reproduces the pinned solution to its own accuracy, so compare
+       against the active-set tolerance, not zTOL, lest numerical noise
+       be taken for a feasible direction */
     for( i=0; i<n; i++ )
-      for( j=0; j<n; j++ )
-        zMatElemNC(qa,i,j) = -zMatElemNC(q,i,j);
-    for( k=0, j=n; j<nm; j++ ){
-      while( !zIndexElemNC(idx,k) && k < zVecSizeNC(b) ) k++;
-      for( i=0; i<n; i++ )
-        zMatElemNC(qa,i,j) = zMatElemNC(a,k,i);
-      k++;
-    }
-    for( k=0, i=n; i<nm; i++ ){
-      while( !zIndexElemNC(idx,k) && k < zVecSizeNC(b) ) k++;
-      for( j=0; j<n; j++ )
-        zMatElemNC(qa,i,j) = zMatElemNC(a,k,j);
-      k++;
-    }
-    for( i=n; i<nm; i++ )
-      for( j=n; j<nm; j++ )
-        zMatElemNC(qa,i,j) = 0.0;
-    for( i=0; i<n; i++ )
-      zVecElemNC(cb,i) = zVecElemNC(c,i);
-    for( k=0; i<nm; i++ ){
-      while( !zIndexElemNC(idx,k) && k < zVecSizeNC(b) ) k++;
-      zVecElemNC(cb,i) = zVecElemNC(b,k);
-      k++;
-    }
-    zLESolveMP( qa, cb, NULL, NULL, xy );
-
-    for( i=0; i<n; i++ )
-      if( !zEqual( zVecElemNC(xy,i), zVecElemNC(ans,i), zTOL ) ) goto STEP2;
+      if( !zEqual( zVecElemNC(xy,i), zVecElemNC(ans,i), RKFD_OPT_QP_ASM_TOL ) ) goto STEP2;
     for( i=0; i<n; i++ )
       zVecElemNC(ans,i) = zVecElemNC(xy,i);
     for( i=0; i<m; i++ )
@@ -142,6 +166,7 @@ bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec i
         if( tempd2 < tempd ) tempd = tempd2;
       }
     }
+    if( tempd < 0 ) tempd = 0; /* a blocking constraint is already tight */
     for( i=0; i<n; i++ )
       zVecElemNC(ans,i) += tempd * zVecElemNC(d,i);
     for( i=0; i<zVecSizeNC(b); i++ )
@@ -175,7 +200,7 @@ bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec i
   zListForEach( &ilist, idata )
     zIndexFree( idata->data.idx );
   zListDestroy( _rkFDQPASMIndex, &ilist );
-  zMatFree( qa );
-  zVecFreeAtOnce( 3, xy, cb, d );
+  zMatFreeAtOnce( 4, qinv, aact, tm, s );
+  zVecFreeAtOnce( 7, xy, bact, rhs, lam, tmp, xv, d );
   return ret;
 }
