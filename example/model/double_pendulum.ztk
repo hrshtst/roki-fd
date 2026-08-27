@@ -1,0 +1,94 @@
+[roki::chain]
+name : double_pendulum
+
+[zeo::optic]
+name : white
+ambient : 0.8, 0.8, 0.8
+diffuse : 0.8, 0.8, 0.8
+specular : 0.0, 0.0, 0.0
+esr : 1.0
+
+[zeo::optic]
+name : gray
+ambient : 0.3, 0.3, 0.3
+diffuse : 0.3, 0.3, 0.3
+specular : 0.0, 0.0, 0.0
+esr : 1.0
+
+[zeo::shape]
+name : pivot
+type : box
+optic : gray
+center : 0, 0, 0
+depth : 0.03
+width : 0.03
+height : 0.03
+
+[zeo::shape]
+name : rod
+type : cylinder
+optic : white
+center : 0, 0, 0
+center : 0.2, 0, 0
+radius : 0.008
+
+[roki::motor]
+name : free
+type : trq
+max : 1.0
+min : -1.0
+
+[roki::link]
+name : base
+jointtype : fixed
+shape : pivot
+
+[roki::link]
+name : link1
+min : 0
+max : 0
+jointtype : revolute
+shape : rod
+stiffness : 0
+viscosity : 0
+coulomb : 0
+staticfriction : 0
+motor : free
+mass : 1.0
+COM : { 0.1, 0, 0 }
+inertia : {
+ 0.0001, 0, 0
+ 0, 0.0001, 0
+ 0, 0, 0.0001
+}
+frame : {
+ 1, 0, 0, 0
+ 0, 0,-1, 0
+ 0, 1, 0, 0
+}
+parent : base
+
+[roki::link]
+name : link2
+min : -30
+max : 90
+jointtype : revolute
+shape : rod
+stiffness : 0
+viscosity : 0
+coulomb : 0
+staticfriction : 0
+motor : free
+mass : 1.0
+COM : { 0.1, 0, 0 }
+inertia : {
+ 0.0001, 0, 0
+ 0, 0.0001, 0
+ 0, 0, 0.0001
+}
+frame : {
+ 1, 0, 0, 0.2
+ 0, 1, 0, 0
+ 0, 0, 1, 0
+}
+parent : link1
