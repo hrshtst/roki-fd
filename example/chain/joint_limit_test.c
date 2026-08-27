@@ -5,9 +5,12 @@
  * locked by a two-sided stop while its second link falls onto its
  * lower limit (the models of test/joint_limit_test.c, given shapes for
  * the display).  The joint displacements are recorded for rk_anim; the
- * pendulums swing in the x-z plane about the y axis:
- *   rk_anim ../model/pendulum.ztk pendulum.zvs -coord 0.05 -y 1.5 -pan 90
- *   rk_anim ../model/double_pendulum.ztk double_pendulum.zvs -coord 0.05 -y 1.5 -pan 90
+ * pendulums hang from the origin and swing in the x-z plane about the
+ * y axis, so the camera looks along the y axis (its default position
+ * is x = 2, which must be reset; a negative value needs the --
+ * separator):
+ *   rk_anim ../model/pendulum.ztk pendulum.zvs -x 0 -y 1.5 -z -- -0.15 -pan 90 -coord 0.05
+ *   rk_anim ../model/double_pendulum.ztk double_pendulum.zvs -x 0 -y 1.5 -z -- -0.15 -pan 90 -coord 0.05
  * The penetration of a stop is visible as the joint resting a little
  * beyond its limit; with a zero stiffness (the second argument, default
  * RK_FD_JOINT_LIMIT_K_DEFAULT) the stop is a perfectly inelastic
