@@ -1,0 +1,9 @@
+[roki::contact]
+bind : body ground
+staticfriction : 0.5
+kineticfriction : 0.3
+elasticity : 1.0e4
+viscosity : 100.0
+
+[roki_fd::jointlimit]
+stiffness : 0

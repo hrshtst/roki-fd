@@ -45,6 +45,35 @@ typedef struct{
 __ROKI_FD_EXPORT bool rkFDPrpInit(rkFDPrp *prp);
 __ROKI_FD_EXPORT void rkFDPrpDestroy(rkFDPrp *prp);
 
+/* ZTK */
+
+/*! \brief joint range limit stops in a ZTK file.
+ *
+ * The compliant stops of the joint range limits are configured by a
+ * section
+ *   [roki_fd::jointlimit]
+ *   stiffness : 100
+ *   damping : 1
+ *   width : 5
+ * where the width is in degrees (or meters for prismatic joints), as the
+ * joint range limits in chain files; a zero stiffness disables the
+ * compliant stop, leaving the perfectly inelastic one at the limit.
+ * Keys not given keep their values.  rkFDPrpFromZTK() evaluates such a
+ * section of a ZTK format processor \a ztk into \a prp, and
+ * rkFDPrpReadZTK() reads it from a file \a filename; a file without the
+ * section leaves \a prp untouched.  rkFDContactInfoScanFile() evaluates
+ * the section of the contact information file as well.
+ * \return
+ * rkFDPrpFromZTK() and rkFDPrpReadZTK() return \a prp.
+ */
+#define ZTK_TAG_ROKI_FD_JOINTLIMIT           "roki_fd::jointlimit"
+#define ZTK_KEY_ROKI_FD_JOINTLIMIT_STIFFNESS "stiffness"
+#define ZTK_KEY_ROKI_FD_JOINTLIMIT_DAMPING   "damping"
+#define ZTK_KEY_ROKI_FD_JOINTLIMIT_WIDTH     "width"
+
+__ROKI_FD_EXPORT rkFDPrp *rkFDPrpFromZTK(rkFDPrp *prp, ZTK *ztk);
+__ROKI_FD_EXPORT rkFDPrp *rkFDPrpReadZTK(rkFDPrp *prp, const char filename[]);
+
 __END_DECLS
 
 #endif /* __RKFD_PROPERTY_H__ */

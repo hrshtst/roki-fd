@@ -234,8 +234,25 @@ static void assert_reaction(void)
   pendulum_destroy( &p );
 }
 
+/* the configuration from ZTK files */
+static void assert_ztk(void)
+{
+  rkFDPrp prp;
+  rkFD fd;
+
+  rkFDPrpInit( &prp );
+  zAssert( rkFDPrpReadZTK (a file with the section), rkFDPrpReadZTK( &prp, "jointlimit_soft.ztk" ) == &prp && prp.joint_limit_k == 250 && prp.joint_limit_c == 2.5 && zIsTiny( prp.joint_limit_width - zDeg2Rad(3) ) );
+  zAssert( rkFDPrpReadZTK (a file without the section keeps the values), rkFDPrpReadZTK( &prp, "pendulum.ztk" ) == &prp && prp.joint_limit_k == 250 && prp.joint_limit_c == 2.5 );
+  zAssert( rkFDPrpReadZTK (a missing file), rkFDPrpReadZTK( &prp, "no_such_file.ztk" ) == NULL );
+  /* the contact information file carries the section as well */
+  rkFDCreate( &fd );
+  zAssert( rkFDContactInfoScanFile (the section disables the compliant stop), rkFDContactInfoScanFile( &fd, "jointlimit_off.ztk" ) && rkFDPrpJointLimitK( &fd.prp ) == 0 && rkFDPrpJointLimitC( &fd.prp ) == RK_FD_JOINT_LIMIT_C_DEFAULT );
+  rkFDDestroy( &fd );
+}
+
 int main(int argc, char *argv[])
 {
+  assert_ztk();
   assert_stop_function();
   assert_limit_trq();
   assert_pendulum();

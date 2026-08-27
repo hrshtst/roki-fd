@@ -265,10 +265,20 @@ bool rkFDChainUnreg(rkFD *fd, rkFDCell *cell)
 /* read contact information */
 bool rkFDContactInfoScanFile(rkFD *fd, char filename[]){
   rkCDPair *cdp;
+  ZTK ztk;
+  bool ret;
 
   if( zArraySize(&fd->ci) != 0)
     rkContactInfoArrayDestroy( &fd->ci );
-  if( !rkContactInfoArrayReadZTK( &fd->ci, filename ) ) return false;
+  ZTKInit( &ztk );
+  if( !ZTKParse( &ztk, filename ) ){
+    ZTKDestroy( &ztk );
+    return false;
+  }
+  ret = rkContactInfoArrayFromZTK( &fd->ci, &ztk ) != NULL;
+  rkFDPrpFromZTK( &fd->prp, &ztk ); /* the joint range limit stops, if given */
+  ZTKDestroy( &ztk );
+  if( !ret ) return false;
   /* set contact info */
   zListForEach( &rkFDCDBase(&fd->cd)->plist, cdp ){
     cdp->data.ci = rkContactInfoArrayAssoc( &fd->ci, rkLinkStuff(cdp->data.cell[0]->data.link),

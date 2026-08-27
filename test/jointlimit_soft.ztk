@@ -1,0 +1,4 @@
+[roki_fd::jointlimit]
+stiffness : 250
+damping : 2.5
+width : 3
