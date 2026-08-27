@@ -66,6 +66,21 @@ __ROKI_FD_EXPORT void rkFDFK(rkFD *fd, zVec dis);
 __ROKI_FD_EXPORT void rkFDUpdateRate(rkFD *fd, zVec vel, zVec acc);
 __ROKI_FD_EXPORT void rkFDUpdateFKRate(rkFD *fd);
 
+/*! \brief stop the joints of a chain at their range limits.
+ *
+ * rkFDChainStopJointsAtLimits() projects the joint state \a dis and
+ * \a vel of \a chain onto the range limits of its one-degree-of-freedom
+ * joints: a displacement beyond a limit is set to the limit, and the
+ * velocity of a joint at a limit is zeroed when it points beyond the
+ * limit, treating the stop as a perfectly inelastic collision.  The
+ * forward dynamics applies it to every state it connects to the chains,
+ * since rkJointSetDis clamps the displacement when the state is written
+ * to the chain while the integrated state itself is constrained by
+ * nothing.
+ * \return the number of joints whose velocity is stopped.
+ */
+__ROKI_FD_EXPORT int rkFDChainStopJointsAtLimits(rkChain *chain, zVec dis, zVec vel);
+
 __ROKI_FD_EXPORT void rkFDChainSetDis(rkFDCell *lc, zVec dis);
 __ROKI_FD_EXPORT void rkFDChainSetVel(rkFDCell *lc, zVec vel);
 __ROKI_FD_EXPORT bool rkFDContactInfoScanFile(rkFD *fd, char filename[]);

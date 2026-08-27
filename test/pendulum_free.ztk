@@ -1,0 +1,34 @@
+[roki::chain]
+name : pendulum
+
+[roki::motor]
+name : free
+type : trq
+max : 1.0
+min : -1.0
+
+[roki::link]
+name : base
+jointtype : fixed
+
+[roki::link]
+name : rod
+jointtype : revolute
+stiffness : 0
+viscosity : 0
+coulomb : 0
+staticfriction : 0
+motor : free
+mass : 1.0
+COM : { 0.1, 0, 0 }
+inertia : {
+ 0.0001, 0, 0
+ 0, 0.0001, 0
+ 0, 0, 0.0001
+}
+frame : {
+ 1, 0, 0, 0
+ 0, 0,-1, 0
+ 0, 1, 0, 0
+}
+parent : base

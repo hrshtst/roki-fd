@@ -286,6 +286,52 @@ void rkFDChainSetVel(rkFDCell *lc, zVec vel)
   rkChainSetJointVelAll( rkFDCellChain(lc), vel );
 }
 
+/* joint stops.
+ * rkJointSetDis clamps the displacement of a joint at its range limit
+ * when the state is written to the chain, but the state the forward
+ * dynamics integrates is constrained by nothing: a joint pressed against
+ * its stop would go on accumulating displacement and velocity in the
+ * state while the chain shows it standing at the limit, and every
+ * velocity-dependent quantity of the chain -- the link velocities, hence
+ * the damping and the friction of the penalty contact and the bias
+ * velocities of the rigid contact constraints -- would see a motion
+ * that does not exist.  The state is projected onto the range: the
+ * displacement of every one-degree-of-freedom joint beyond a limit is
+ * set to the limit, and its velocity is zeroed when it points beyond the
+ * limit, i.e. the stop is a perfectly inelastic collision.  This is
+ * applied to every state the chains are connected to, namely to the
+ * intermediate stages of the integrator as well as to the accepted
+ * state, so that the stages see consistent states too.
+ * The number of joints whose velocity is stopped is returned. */
+int rkFDChainStopJointsAtLimits(rkChain *chain, zVec dis, zVec vel)
+{
+  rkJoint *joint;
+  double min, max;
+  int i, offset, n = 0;
+
+  for( i=0; i<rkChainLinkNum(chain); i++ ){
+    joint = rkChainLinkJoint( chain, i );
+    if( rkJointDOF(joint) != 1 ) continue;
+    offset = rkChainLinkJointIDOffset( chain, i );
+    rkJointGetMin( joint, &min );
+    rkJointGetMax( joint, &max );
+    if( zVecElemNC(dis,offset) <= min ){
+      zVecElemNC(dis,offset) = min;
+      if( zVecElemNC(vel,offset) < 0 ){
+        zVecElemNC(vel,offset) = 0;
+        n++;
+      }
+    } else if( zVecElemNC(dis,offset) >= max ){
+      zVecElemNC(dis,offset) = max;
+      if( zVecElemNC(vel,offset) > 0 ){
+        zVecElemNC(vel,offset) = 0;
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
 /* connect each cell state to the total state */
 void _rkFDConnectJointState(rkFD *fd, zVec dis, zVec vel, zVec acc)
 {
@@ -295,6 +341,7 @@ void _rkFDConnectJointState(rkFD *fd, zVec dis, zVec vel, zVec acc)
     lc->data._dis.buf = &zVecElemNC(dis,lc->data._offset);
     lc->data._vel.buf = &zVecElemNC(vel,lc->data._offset);
     lc->data._acc.buf = &zVecElemNC(acc,lc->data._offset);
+    rkFDChainStopJointsAtLimits( rkFDCellChain(lc), &lc->data._dis, &lc->data._vel );
     rkChainFK( rkFDCellChain(lc), &lc->data._dis );
     rkChainSetJointVelAll( rkFDCellChain(lc), &lc->data._vel );
     rkChainUpdateVel( rkFDCellChain(lc) );
