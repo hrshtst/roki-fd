@@ -22,4 +22,12 @@
 #define RK_FD_MAX_ITER_DEFAULT                 10
 #define RK_FD_VEL_EPSILON_DEFAULT              (1.0e-8)
 
+/* joint range limits as compliant stops: stiffness [Nm/rad] or [N/m],
+ * damping [Nms/rad] or [Ns/m], and the largest penetration of the
+ * integrated state beyond a limit [rad] or [m], beyond which the state
+ * is projected back onto the limit */
+#define RK_FD_JOINT_LIMIT_K_DEFAULT           100
+#define RK_FD_JOINT_LIMIT_C_DEFAULT             1
+#define RK_FD_JOINT_LIMIT_WIDTH_DEFAULT         0.0872664626 /* 5 degrees */
+
 #endif /* __RKFD_DEFS_H__ */

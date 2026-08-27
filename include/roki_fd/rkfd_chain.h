@@ -15,6 +15,9 @@ typedef struct{
   rkChain chain;
   bool has_rigid_col;
   bool done_abi_init;
+  zVec jlimtrq; /* torques of the joint range limits, per joint identifier */
+  zVec jlimmin; /* the joint range limits at registration, per joint identifier */
+  zVec jlimmax;
 } rkFDChain;
 
 #define rkFDChainBase(c)    ( (rkChain*)(c) )
@@ -25,6 +28,9 @@ ZEDA_DEF_ARRAY_CLASS( rkFDChainArray, rkFDChain* );
 #define rkFDChainArrayElem(c,i) *zArrayElem(c,i)
 
 #define rkFDChainIsCol(c) (c)->iscol
+#define rkFDChainLimitTrq(c) (c)->jlimtrq
+#define rkFDChainLimitMin(c) (c)->jlimmin
+#define rkFDChainLimitMax(c) (c)->jlimmax
 #define rkFDChainReset(c) do{   \
     (c)->has_rigid_col = false; \
     (c)->done_abi_init = false; \

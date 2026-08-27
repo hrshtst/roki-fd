@@ -302,10 +302,39 @@ void rkFDUpdateJointPrevDrivingTrq(rkFDChainArray *chains)
       rkJointGetFrictionPivot( joint, jfp );
       rkJointGetFriction( joint, tf );
       rkJointMotorDrivingTrq( joint, val );
+      /* the torque of the joint range limit rides on the friction;
+         the pivot must not see it */
+      if( rkJointDOF(joint) == 1 )
+        tf[0] -= zVecElemNC( rkFDChainLimitTrq(*fdc), rkChainLinkJointIDOffset(chain,i) );
       for( j=0; j<rkJointDOF(joint); j++ ){
         jfp[j].prev_trq = val[j] + tf[j];
       }
       rkJointSetFrictionPivot( joint, jfp );
+    }
+  }
+}
+
+/* add the torques of the joint range limits to the joint friction torques,
+ * through which they enter the driving torques of the joints
+ * NOTE:
+ * this function must be called after the computation of joint friction
+ */
+void rkFDJointLimit(rkFDChainArray *chains)
+{
+  rkFDChain **fdc;
+  rkChain *chain;
+  rkJoint *joint;
+  int i;
+  double tf;
+
+  rkFDArrayForEach( chains, fdc ){
+    chain = rkFDChainBase( *fdc );
+    for( i=0; i<rkChainLinkNum(chain); i++ ){
+      joint = rkChainLinkJoint(chain,i);
+      if( rkJointDOF(joint) != 1 ) continue;
+      rkJointGetFriction( joint, &tf );
+      tf += zVecElemNC( rkFDChainLimitTrq(*fdc), rkChainLinkJointIDOffset(chain,i) );
+      rkJointSetFriction( joint, &tf );
     }
   }
 }
@@ -370,6 +399,7 @@ void rkFDJointFriction(rkFDChainArray *chains, double dt, double weight, bool do
   rkJoint *joint;
   rkMotor *motor;
   int i;
+  double tf;
 
   rkFDArrayForEach( chains, fdc ){
     chain = rkFDChainBase( *fdc );
@@ -378,8 +408,15 @@ void rkFDJointFriction(rkFDChainArray *chains, double dt, double weight, bool do
       /* 1DoF joint and DC motor only */
       if( rkJointDOF(joint) == 1 ){
         motor = rkJointMotor( joint );
-        if( motor->spec->com == &rk_motor_dc )
+        if( motor->spec->com == &rk_motor_dc ){
           rkFDJointFrictionRevolDC( joint, dt, doUpRef );
+        } else{
+          /* no friction model for the other motors: the friction is
+             reset, since the torque of the joint range limit is added
+             to it afterwards */
+          tf = 0;
+          rkJointSetFriction( joint, &tf );
+        }
       } else
         rkFDJointFrictionAll( joint, weight );
     }

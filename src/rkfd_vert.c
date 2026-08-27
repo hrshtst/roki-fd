@@ -362,6 +362,7 @@ void rkFDSolverColChk_Vert(rkFDSolver *s, bool doUpRef)
 bool rkFDSolverUpdate_Vert(rkFDSolver *s, bool doUpRef)
 {
   rkFDJointFriction( rkFDSolverChains(s), rkFDPrpDT(s->fdprp), rkFDPrpFrictionWeight(s->fdprp), doUpRef );
+  rkFDJointLimit( rkFDSolverChains(s) );
   if( rkFDCDElastNum(s->cd) != 0 )
     rkFDSolverPenalty( s, doUpRef );
   if( rkFDCDRigidNum(s->cd) != 0 )

@@ -49,6 +49,7 @@ __ROKI_FD_EXPORT void rkFDContactForcePushWrench(rkCDPairDat *pd, rkCDVert *cdv)
 
 /******************************************************************************/
 __ROKI_FD_EXPORT void rkFDUpdateJointPrevDrivingTrq(rkFDChainArray *chains);
+__ROKI_FD_EXPORT void rkFDJointLimit(rkFDChainArray *chains);
 __ROKI_FD_EXPORT void rkFDJointFrictionAll(rkJoint *joint, double weight);
 __ROKI_FD_EXPORT void rkFDJointFrictionRevolDC(rkJoint *joint, double dt, bool doUpRef);
 __ROKI_FD_EXPORT void rkFDJointFriction(rkFDChainArray *chains, double dt, double weight, bool doUpRef);

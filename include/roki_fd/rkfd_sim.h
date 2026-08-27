@@ -66,20 +66,53 @@ __ROKI_FD_EXPORT void rkFDFK(rkFD *fd, zVec dis);
 __ROKI_FD_EXPORT void rkFDUpdateRate(rkFD *fd, zVec vel, zVec acc);
 __ROKI_FD_EXPORT void rkFDUpdateFKRate(rkFD *fd);
 
-/*! \brief stop the joints of a chain at their range limits.
+/*! \brief joint range limits as compliant stops.
  *
- * rkFDChainStopJointsAtLimits() projects the joint state \a dis and
- * \a vel of \a chain onto the range limits of its one-degree-of-freedom
- * joints: a displacement beyond a limit is set to the limit, and the
- * velocity of a joint at a limit is zeroed when it points beyond the
- * limit, treating the stop as a perfectly inelastic collision.  The
- * forward dynamics applies it to every state it connects to the chains,
- * since rkJointSetDis clamps the displacement when the state is written
- * to the chain while the integrated state itself is constrained by
- * nothing.
- * \return the number of joints whose velocity is stopped.
+ * rkJointSetDis() clamps the displacement of a joint at its range limit
+ * when the state is written to the chain, while the state the forward
+ * dynamics integrates is constrained by nothing.  The forward dynamics
+ * therefore treats a limit as a compliant stop, in the manner of the
+ * penalty contact: the integrated state may penetrate the limit, which
+ * the chain does not show, and the penetration produces a reaction
+ * torque that enters the driving torque of the joint.
+ *
+ * rkFDJointLimitTrq() is that torque for a displacement \a dis and a
+ * velocity \a vel of a joint ranging from \a min to \a max: a spring of
+ * stiffness \a k and a damper of coefficient \a c on the penetration,
+ * which only pushes the joint back into the range and never pulls it
+ * toward the limit.  rkFDChainJointLimitTrq() stores it for every
+ * one-degree-of-freedom joint of \a chain in \a trq, indexed by joint
+ * identifier; \a k = 0 disables the stops.
+ *
+ * rkFDChainStopJointsAtLimits() bounds the penetration: it projects the
+ * joint state \a dis and \a vel of \a chain onto the range limits widened
+ * by \a width, setting a displacement beyond a bound to the bound and
+ * zeroing the velocity that points beyond it, i.e. the stop becomes a
+ * perfectly inelastic collision there.  With \a width = 0 the stop is that
+ * collision at the limit itself.
+ *
+ * The forward dynamics applies both to every state it connects to the
+ * chains; the stiffness, the damping and the width are properties of
+ * rkFDPrp (rkFDPrpSetJointLimitK(), rkFDPrpSetJointLimitC() and
+ * rkFDPrpSetJointLimitWidth()).  So that the chain shows the
+ * penetration, and its positions and velocities agree, the joint range
+ * limits are widened by the width while the state is written to the
+ * chain and restored right after: rkFDChainJointLimitStore() stores the
+ * limits of the one-degree-of-freedom joints of \a chain in \a min and
+ * \a max at registration (a limit changed afterwards is not seen), and
+ * rkFDChainJointLimitWiden() sets them widened by \a width (restored
+ * with \a width = 0).
+ * \return
+ * rkFDJointLimitTrq() returns the torque.
+ * rkFDChainJointLimitTrq() returns \a trq.
+ * rkFDChainStopJointsAtLimits() returns the number of joints whose
+ * velocity is stopped.
  */
-__ROKI_FD_EXPORT int rkFDChainStopJointsAtLimits(rkChain *chain, zVec dis, zVec vel);
+__ROKI_FD_EXPORT int rkFDChainStopJointsAtLimits(rkChain *chain, zVec dis, zVec vel, double width);
+__ROKI_FD_EXPORT double rkFDJointLimitTrq(double dis, double vel, double min, double max, double k, double c);
+__ROKI_FD_EXPORT zVec rkFDChainJointLimitTrq(rkChain *chain, zVec dis, zVec vel, double k, double c, zVec trq);
+__ROKI_FD_EXPORT void rkFDChainJointLimitStore(rkChain *chain, zVec min, zVec max);
+__ROKI_FD_EXPORT void rkFDChainJointLimitWiden(rkChain *chain, zVec min, zVec max, double width);
 
 __ROKI_FD_EXPORT void rkFDChainSetDis(rkFDCell *lc, zVec dis);
 __ROKI_FD_EXPORT void rkFDChainSetVel(rkFDCell *lc, zVec vel);

@@ -1,0 +1,60 @@
+[roki::chain]
+name : double_pendulum
+
+[roki::motor]
+name : free
+type : trq
+max : 1.0
+min : -1.0
+
+[roki::link]
+name : base
+jointtype : fixed
+
+[roki::link]
+name : link1
+min : 0
+max : 0
+jointtype : revolute
+stiffness : 0
+viscosity : 0
+coulomb : 0
+staticfriction : 0
+motor : free
+mass : 1.0
+COM : { 0.1, 0, 0 }
+inertia : {
+ 0.0001, 0, 0
+ 0, 0.0001, 0
+ 0, 0, 0.0001
+}
+frame : {
+ 1, 0, 0, 0
+ 0, 0,-1, 0
+ 0, 1, 0, 0
+}
+parent : base
+
+[roki::link]
+name : link2
+min : -30
+max : 90
+jointtype : revolute
+stiffness : 0
+viscosity : 0
+coulomb : 0
+staticfriction : 0
+motor : free
+mass : 1.0
+COM : { 0.1, 0, 0 }
+inertia : {
+ 0.0001, 0, 0
+ 0, 0.0001, 0
+ 0, 0, 0.0001
+}
+frame : {
+ 1, 0, 0, 0.2
+ 0, 1, 0, 0
+ 0, 0, 1, 0
+}
+parent : link1
