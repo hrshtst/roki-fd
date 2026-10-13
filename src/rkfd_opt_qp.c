@@ -210,8 +210,11 @@ bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec i
  * problem by the projected Gauss=Seidel method.  Unlike the active-set
  * method above, no rank-revealing linear solve is involved, so
  * degenerate (redundant) constraint sets such as friction pyramids of
- * coplanar contact vertices are handled without numerical hazard. */
-#define RKFD_OPT_QP_PGS_ITER_MAX 10000
+ * coplanar contact vertices are handled without numerical hazard.
+ * The primal answer satisfies the constraints only at convergence, and
+ * impacts and edge contacts of a sole may take far more than 10^4
+ * sweeps; stopping earlier leaves pulling normal forces. */
+#define RKFD_OPT_QP_PGS_ITER_MAX 200000
 #define RKFD_OPT_QP_PGS_TOL ( 1.0e-12 )
 bool rkFDQPSolvePGS(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx)
 {
