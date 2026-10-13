@@ -279,3 +279,175 @@ bool rkFDQPSolvePGS(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx)
   zVecFreeAtOnce( 3, pfree, q0, lam );
   return ret;
 }
+
+/* solve s x = r for x in place of the first n components of r by the
+ * Cholesky decomposition of the leading n x n block of a symmetric
+ * positive-definite matrix s, which is overwritten by its factor. */
+static bool _rkFDQPCholeskySolveDST(zMat s, zVec r, int n)
+{
+  int i, j, k;
+  double d;
+
+  for( j=0; j<n; j++ ){
+    d = zMatElemNC(s,j,j);
+    for( k=0; k<j; k++ )
+      d -= zMatElemNC(s,j,k) * zMatElemNC(s,j,k);
+    if( d <= 0 ) return false;
+    zMatElemNC(s,j,j) = sqrt( d );
+    for( i=j+1; i<n; i++ ){
+      d = zMatElemNC(s,i,j);
+      for( k=0; k<j; k++ )
+        d -= zMatElemNC(s,i,k) * zMatElemNC(s,j,k);
+      zMatElemNC(s,i,j) = d / zMatElemNC(s,j,j);
+    }
+  }
+  for( i=0; i<n; i++ ){ /* forward substitution */
+    d = zVecElemNC(r,i);
+    for( k=0; k<i; k++ )
+      d -= zMatElemNC(s,i,k) * zVecElemNC(r,k);
+    zVecElemNC(r,i) = d / zMatElemNC(s,i,i);
+  }
+  for( i=n-1; i>=0; i-- ){ /* backward substitution */
+    d = zVecElemNC(r,i);
+    for( k=i+1; k<n; k++ )
+      d -= zMatElemNC(s,k,i) * zVecElemNC(r,k);
+    zVecElemNC(r,i) = d / zMatElemNC(s,i,i);
+  }
+  return true;
+}
+
+/* solve a quadratic program with a positive-definite Hessian and
+ * inequality constraints by the dual active-set method of Goldfarb and
+ * Idnani (Math. Program. 27:1-33, 1983).  Starting from the
+ * unconstrained minimum, the method adds the most violated constraint
+ * one at a time and solves the problem exactly on the active set,
+ * dropping on the way any active constraint whose multiplier would turn
+ * negative.  The cost increases at every step, so that the iteration
+ * ends in a finite number of steps at the exact optimum; unlike the
+ * projected Gauss=Seidel method above, an ill-conditioned problem costs
+ * accuracy, not iterations.  A constraint linearly dependent on the
+ * active ones, as a fourth facet of a friction pyramid is, never enters
+ * the active set: a pure dual step drops an active one instead, so that
+ * the active constraints stay linearly independent and their Gram
+ * matrix positive definite.  It returns false, leaving ans and idx
+ * untouched, if the constraints are infeasible, the Gram matrix breaks
+ * down numerically, or the iteration does not end. */
+#define RKFD_OPT_QP_GI_ITER_MAX 10000
+#define RKFD_OPT_QP_GI_TOL      ( 1.0e-12 )
+#define RKFD_OPT_QP_GI_DEP_TOL  ( 1.0e-10 )
+bool rkFDQPSolveGI(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx)
+{
+  zMat qinv, e, s;
+  zVec f, u, z, r, qn, rn;
+  zIndex act;
+  double val, fmax, worst, an, zn, rmax, t, t1, t2, up;
+  bool ret = false;
+  int n, mb, na = 0, i, j, k, l, p, k1, iter = 0;
+
+  n = zVecSizeNC(ans);
+  mb = zVecSizeNC(b);
+  qinv = zMatAllocSqr( n );
+  e = zMatAllocSqr( n ); /* Q^-1 a_k^T of the active constraints, row-wise */
+  s = zMatAllocSqr( n );
+  f = zVecAlloc( n );
+  u = zVecAlloc( n ); /* multipliers of the active constraints */
+  z = zVecAlloc( n );
+  r = zVecAlloc( n );
+  qn = zVecAlloc( n );
+  rn = zVecAlloc( mb );
+  act = zIndexCreate( n );
+  if( !qinv || !e || !s || !f || !u || !z || !r || !qn || !rn || !act )
+    goto RET;
+  if( !zMatInv( q, qinv ) ) goto RET;
+  /* the unconstrained minimum */
+  zMulMatVec( qinv, c, f );
+  zVecRevDRC( f );
+  for( i=0; i<mb; i++ )
+    zVecElemNC(rn,i) = sqrt( zRawVecInnerProd( zMatRowBufNC(a,i), zMatRowBufNC(a,i), n ) );
+  while( 1 ){
+    /* the most violated inactive constraint, normalized by its row */
+    for( fmax=0, j=0; j<n; j++ )
+      fmax = zMax( fmax, fabs( zVecElemNC(f,j) ) );
+    for( p=-1, worst=0, i=0; i<mb; i++ ){
+      if( zVecElemNC(rn,i) < zTOL ) continue; /* degenerate row */
+      for( k=0; k<na; k++ )
+        if( zIndexElemNC(act,k) == i ) break;
+      if( k < na ) continue;
+      val = ( zRawVecInnerProd( zMatRowBufNC(a,i), zVecBufNC(f), n ) - zVecElemNC(b,i) ) / zVecElemNC(rn,i);
+      if( val < -RKFD_OPT_QP_GI_TOL * ( fmax + RKFD_OPT_QP_GI_TOL ) && val < worst ){
+        worst = val;
+        p = i;
+      }
+    }
+    if( p < 0 ) break; /* optimal */
+    for( j=0; j<n; j++ ) /* Q^-1 a_p^T, Q being symmetric */
+      zVecElemNC(qn,j) = zRawVecInnerProd( zMatRowBufNC(qinv,j), zMatRowBufNC(a,p), n );
+    an = zRawVecInnerProd( zMatRowBufNC(a,p), zVecBufNC(qn), n );
+    for( up=0; ; ){
+      if( ++iter > RKFD_OPT_QP_GI_ITER_MAX ) goto RET;
+      /* r = ( A Q^-1 A^T )^-1 A Q^-1 a_p^T over the active rows A,
+         z = Q^-1 a_p^T - Q^-1 A^T r: the primal step direction */
+      for( k=0; k<na; k++ ){
+        for( l=0; l<na; l++ )
+          zMatElemNC(s,k,l) = zRawVecInnerProd( zMatRowBufNC(a,zIndexElemNC(act,k)), zMatRowBufNC(e,l), n );
+        zVecElemNC(r,k) = zRawVecInnerProd( zMatRowBufNC(a,zIndexElemNC(act,k)), zVecBufNC(qn), n );
+      }
+      if( na > 0 && !_rkFDQPCholeskySolveDST( s, r, na ) ) goto RET;
+      for( j=0; j<n; j++ ){
+        for( val=zVecElemNC(qn,j), k=0; k<na; k++ )
+          val -= zVecElemNC(r,k) * zMatElemNC(e,k,j);
+        zVecElemNC(z,j) = val;
+      }
+      /* dual step length: the first active multiplier to vanish */
+      for( rmax=0, k=0; k<na; k++ )
+        rmax = zMax( rmax, fabs( zVecElemNC(r,k) ) );
+      for( t1=HUGE_VAL, k1=-1, k=0; k<na; k++ )
+        if( zVecElemNC(r,k) > RKFD_OPT_QP_GI_TOL * rmax &&
+            zVecElemNC(u,k) / zVecElemNC(r,k) < t1 ){
+          t1 = zVecElemNC(u,k) / zVecElemNC(r,k);
+          k1 = k;
+        }
+      /* primal step length: the added constraint satisfied; none if
+         it depends linearly on the active ones, as it always does on
+         n active ones, which round-off may hide in an ill-conditioned
+         problem */
+      zn = zRawVecInnerProd( zVecBufNC(z), zMatRowBufNC(a,p), n );
+      t2 = na < n && zn > RKFD_OPT_QP_GI_DEP_TOL * an ?
+        ( zVecElemNC(b,p) - zRawVecInnerProd( zMatRowBufNC(a,p), zVecBufNC(f), n ) ) / zn : HUGE_VAL;
+      if( t1 == HUGE_VAL && t2 == HUGE_VAL ) goto RET; /* infeasible */
+      t = zMin( t1, t2 );
+      if( t2 < HUGE_VAL )
+        for( j=0; j<n; j++ )
+          zVecElemNC(f,j) += t * zVecElemNC(z,j);
+      for( k=0; k<na; k++ )
+        zVecElemNC(u,k) -= t * zVecElemNC(r,k);
+      up += t;
+      if( t2 <= t1 ){ /* full step: add the constraint */
+        zIndexElemNC(act,na) = p;
+        zVecElemNC(u,na) = up;
+        zRawVecCopy( zVecBufNC(qn), zMatRowBufNC(e,na), n );
+        na++;
+        break;
+      }
+      /* partial step: drop the active constraint whose multiplier vanished */
+      for( k=k1; k<na-1; k++ ){
+        zIndexElemNC(act,k) = zIndexElemNC(act,k+1);
+        zVecElemNC(u,k) = zVecElemNC(u,k+1);
+        zRawVecCopy( zMatRowBufNC(e,k+1), zMatRowBufNC(e,k), n );
+      }
+      na--;
+    }
+  }
+  zVecCopy( f, ans );
+  for( i=0; i<mb; i++ )
+    zIndexElemNC(idx,i) = 0;
+  for( k=0; k<na; k++ )
+    zIndexElemNC(idx,zIndexElemNC(act,k)) = zVecElemNC(u,k) > 0 ? 1 : 0;
+  ret = true;
+
+ RET:
+  zMatFreeAtOnce( 3, qinv, e, s );
+  zVecFreeAtOnce( 6, f, u, z, r, qn, rn );
+  zIndexFree( act );
+  return ret;
+}

@@ -16,6 +16,7 @@ __BEGIN_DECLS
 
 __ROKI_FD_EXPORT bool rkFDQPSolveASM(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx, zVec init(zMat,zVec,zVec,void*), double cond(zMat,zVec,int,void*), void *util);
 __ROKI_FD_EXPORT bool rkFDQPSolvePGS(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx);
+__ROKI_FD_EXPORT bool rkFDQPSolveGI(zMat q, zVec c, zMat a, zVec b, zVec ans, zIndex idx);
 
 __END_DECLS
 
