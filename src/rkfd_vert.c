@@ -233,7 +233,10 @@ static void _rkFDSolverCompensateDepth(rkFDSolver *s)
 
 static void _rkFDSolverQPASM(rkFDSolver *s)
 {
-  rkFDQPSolvePGS( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx );
+  /* the dual active-set method solves the QP exactly; the projected
+     Gauss=Seidel method remains as a fallback */
+  if( !rkFDQPSolveGI( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx ) )
+    rkFDQPSolvePGS( _prp(s)->q, _prp(s)->c, _prp(s)->nf, _prp(s)->d, _prp(s)->f, _prp(s)->idx );
 }
 
 /* Quadratic Problem */
